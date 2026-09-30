@@ -1,0 +1,675 @@
+Build: ANIRUDH — AI-Powered Live2D Desktop Agent Pet
+1. Product Vision
+Build a cross-platform desktop AI companion called ANIRUDH.
+ANIRUDH is a transparent, always-on-top desktop pet represented by the word:
+A N I R U D H
+Each letter represents an AI capability:
+A — Analyze
+N — Navigate
+I — Interact
+R — Reason
+U — Understand
+D — Do
+H — Help
+The important concept is that ANIRUDH is both the visual representation of the AI agent and the state machine controlling the AI workflow.
+When the user gives ANIRUDH a task, the application determines which capability is required and routes that task to an appropriate AI model through FreeLLMAPI.
+The active letter visually reacts while that model is working.
+
+2. FreeLLMAPI Integration
+All AI model access should go through FreeLLMAPI.
+The application must NOT hard-code a single AI model.
+Instead, implement a model-provider abstraction:
+ANIRUDH
+   │
+   ▼
+Agent Orchestrator
+   │
+   ▼
+FreeLLMAPI
+   │
+   ├── Model A
+   ├── Model B
+   ├── Model C
+   ├── Model D
+   └── ...
+
+The user provides their unique FreeLLMAPI API key during application setup.
+The API key must be stored securely using the operating system's secure credential/keychain mechanism where possible.
+Never expose the API key in:
+frontend source code
+GitHub repository
+logs
+screenshots
+WebSocket messages
+browser developer tools
+client-side JavaScript bundles
+
+3. Model Switching
+ANIRUDH should support different models for different capabilities.
+The user should be able to configure which FreeLLMAPI model is associated with each letter.
+Default conceptual configuration:
+A → Analyze model
+N → Navigate model
+I → Interact model
+R → Reasoning model
+U → Understanding model
+D → Execution model
+H → Help / communication model
+
+However, do NOT assume that these must literally be different models.
+The user may configure:
+A → Model X
+N → Model X
+I → Model Y
+R → Model Z
+U → Model X
+D → Model Y
+H → Model X
+
+or even:
+A → Model X
+N → Model X
+I → Model X
+R → Model X
+U → Model X
+D → Model X
+H → Model X
+
+The model-routing layer must therefore be configurable.
+
+4. Model Configuration UI
+Create a settings screen:
+┌────────────────────────────────────┐
+│           ANIRUDH AI               │
+├────────────────────────────────────┤
+│                                    │
+│ FreeLLMAPI                         │
+│ API Key: ●●●●●●●●●●●●              │
+│                                    │
+│ A  Analyze       [ Model X ▼ ]     │
+│ N  Navigate      [ Model Y ▼ ]     │
+│ I  Interact      [ Model Y ▼ ]     │
+│ R  Reason        [ Model Z ▼ ]     │
+│ U  Understand    [ Model X ▼ ]     │
+│ D  Do            [ Model Y ▼ ]     │
+│ H  Help          [ Model X ▼ ]     │
+│                                    │
+│          [ Save Configuration ]     │
+└────────────────────────────────────┘
+
+Retrieve the available models from FreeLLMAPI where the API supports model discovery.
+Do not hard-code model names if the provider exposes a models endpoint.
+
+5. API Abstraction
+Create a provider interface so that the rest of ANIRUDH does not directly depend on FreeLLMAPI implementation details.
+For example:
+interface AIProvider {
+  listModels(): Promise<ModelInfo[]>;
+
+  generate(request: AIRequest): Promise<AIResponse>;
+
+  stream?(request: AIRequest): AsyncIterable<AIStreamEvent>;
+}
+
+Then implement:
+class FreeLLMAPIProvider implements AIProvider {
+  ...
+}
+
+The agent orchestrator should interact with:
+AIProvider
+
+rather than directly calling FreeLLMAPI.
+This keeps the architecture extensible.
+
+6. Agent Orchestrator
+Create a central Agent Orchestrator.
+Its responsibilities:
+Receive the user's task.
+Understand the task.
+Determine which ANIRUDH capability is required.
+Activate the corresponding letter.
+Select the configured FreeLLMAPI model.
+Send the request to that model.
+Receive the response.
+Determine the next capability.
+Activate the next letter.
+Continue until the task is complete.
+Report success or failure.
+Conceptually:
+User Task
+   │
+   ▼
+Agent Orchestrator
+   │
+   ├── A → Analyze → Model A
+   │
+   ├── N → Navigate → Model N
+   │
+   ├── I → Interact → Model I
+   │
+   ├── R → Reason → Model R
+   │
+   ├── U → Understand → Model U
+   │
+   ├── D → Do → Model D
+   │
+   └── H → Help → Model H
+
+
+7. Dynamic Model Selection
+Do NOT blindly execute:
+A → Model A
+N → Model N
+I → Model I
+...
+
+The letter represents the current capability, while the model is a configurable implementation of that capability.
+For example:
+const modelRouting = {
+  analyzing: "model-x",
+  navigating: "model-y",
+  interacting: "model-y",
+  reasoning: "model-z",
+  understanding: "model-x",
+  doing: "model-y",
+  helping: "model-x"
+};
+
+The orchestrator should resolve:
+const model = modelRouter.getModelForState("reasoning");
+
+Then:
+Reasoning
+    │
+    ▼
+Configured Model
+    │
+    ▼
+FreeLLMAPI
+
+
+8. ANIRUDH State Machine
+Use the following states:
+type AgentState =
+  | "idle"
+  | "analyzing"
+  | "navigating"
+  | "interacting"
+  | "reasoning"
+  | "understanding"
+  | "doing"
+  | "helping"
+  | "waiting"
+  | "success"
+  | "error";
+
+Map them to letters:
+const stateToLetter = {
+  analyzing: "A",
+  navigating: "N",
+  interacting: "I",
+  reasoning: "R",
+  understanding: "U",
+  doing: "D",
+  helping: "H"
+};
+
+
+9. Example Task Flow
+User says:
+"Research the latest information about a product and summarize it."
+The orchestrator could execute:
+USER TASK
+   │
+   ▼
+A — ANALYZE
+   │
+   │ Model selected from FreeLLMAPI
+   ▼
+N — NAVIGATE
+   │
+   │ Browser/search action
+   ▼
+I — INTERACT
+   │
+   │ Click/type/scroll
+   ▼
+R — REASON
+   │
+   │ Compare information
+   ▼
+U — UNDERSTAND
+   │
+   │ Interpret results
+   ▼
+D — DO
+   │
+   │ Generate requested output
+   ▼
+H — HELP
+   │
+   │ Present result to user
+   ▼
+SUCCESS
+
+The actual state sequence must remain dynamic.
+The AI should be able to move between states based on the task.
+
+10. Visual Representation
+ANIRUDH should visually react to the active state.
+Default:
+A N I R U D H
+
+Analyzing:
+A N I R U D H
+↑
+
+Navigating:
+A N I R U D H
+  ↑
+
+Interacting:
+A N I R U D H
+    ↑
+
+Reasoning:
+A N I R U D H
+      ↑
+
+Understanding:
+A N I R U D H
+        ↑
+
+Doing:
+A N I R U D H
+          ↑
+
+Helping:
+A N I R U D H
+            ↑
+
+The active letter should:
+glow
+pulse
+scale slightly
+animate
+emit subtle particles
+optionally change color
+All inactive letters should remain visible but subdued.
+
+11. Streaming Model Responses
+If FreeLLMAPI supports streaming responses, use streaming.
+While the model is generating:
+R
+
+should remain active.
+The UI can display:
+R
+
+Reasoning...
+
+████████░░░░
+
+When the stream completes:
+R ✓
+
+briefly animate the letter before transitioning to the next state.
+If streaming is unavailable, use normal request/response handling.
+
+12. Agent Event System
+Keep the visual pet independent from the AI provider.
+Create an event interface:
+interface AgentEvent {
+  type:
+    | "task_started"
+    | "state_changed"
+    | "model_selected"
+    | "model_started"
+    | "model_streaming"
+    | "model_completed"
+    | "task_completed"
+    | "task_failed"
+    | "message";
+
+  state?: AgentState;
+
+  model?: string;
+
+  message?: string;
+
+  progress?: number;
+
+  timestamp: number;
+}
+
+Example:
+{
+  "type": "state_changed",
+  "state": "reasoning",
+  "model": "configured-model-name",
+  "message": "Comparing the collected information",
+  "timestamp": 123456789
+}
+
+ANIRUDH receives this event and activates R.
+
+13. Local Communication
+Use a local WebSocket connection:
+AI Agent
+    │
+    ▼
+Agent Event Bus
+    │
+    ▼
+WebSocket
+    │
+    ▼
+ANIRUDH Desktop Pet
+
+Example:
+ws://localhost:<port>
+
+This allows external agents to control ANIRUDH.
+The AI engine could eventually be:
+the built-in FreeLLMAPI agent
+Browser Use
+OpenHands
+another computer-use agent
+a custom Python agent
+a custom Node.js agent
+The desktop pet should not care which one is being used.
+
+14. Computer-Use Integration
+Design the system so the agent can eventually perform real computer actions.
+Possible architecture:
+                 User
+                   │
+                   ▼
+            Agent Orchestrator
+                   │
+             FreeLLMAPI
+                   │
+          ┌────────┴────────┐
+          │                 │
+          ▼                 ▼
+     AI reasoning      Computer Use
+                            │
+                    ┌───────┴───────┐
+                    ▼               ▼
+                 Browser          Desktop
+                    │
+                    ▼
+                 Actions
+
+                   +
+                   
+               ANIRUDH
+            visual companion
+
+ANIRUDH should visualize these actions but should not directly perform them unless explicitly designed to do so.
+
+15. Security
+The FreeLLMAPI API key is sensitive.
+Implement:
+secure storage
+masked API key input
+no logging of API keys
+no API key in frontend bundles
+no API key in Git
+.env support for development
+OS keychain/credential storage for production
+Add:
+.env.example
+
+but NEVER include the actual API key.
+Example:
+FREELLMAPI_API_KEY=
+
+
+16. Desktop Pet
+Use:
+Tauri or Electron
+React
+TypeScript
+Vite
+The window must support:
+transparent background
+always-on-top
+click-through mode as an optional setting
+draggable mode
+resizing
+system tray
+minimize/hide
+startup with operating system
+configurable position
+
+17. Animation Architecture
+Create independent letter components:
+AnirudhPet
+│
+├── LetterA
+├── LetterN
+├── LetterI
+├── LetterR
+├── LetterU
+├── LetterD
+└── LetterH
+
+Each letter receives:
+interface LetterProps {
+  active: boolean;
+  state: AgentState;
+  status: "idle" | "active" | "completed" | "error";
+}
+
+This makes future animation changes easy.
+
+18. Settings
+Create settings for:
+AI
+FreeLLMAPI API key
+model selection
+model per ANIRUDH capability
+temperature where supported
+max tokens where supported
+Appearance
+size
+opacity
+glow intensity
+animation speed
+theme
+position
+Behavior
+always-on-top
+startup automatically
+click-through
+show task status
+show model name
+show progress
+
+19. Model Information
+When a letter is active, optionally show the selected model.
+For example:
+      R
+
+   Reasoning
+
+   Model: XYZ
+
+   Comparing results...
+
+This should be optional because exposing the model name may make the interface visually noisy.
+
+20. Cost / Availability Handling
+Because models may have different availability, latency, or limits, implement graceful fallback.
+Example:
+R → Preferred Model
+       │
+       ├── Available → use it
+       │
+       └── unavailable
+              │
+              ▼
+         Fallback Model
+
+The fallback model should be configurable.
+If FreeLLMAPI returns an error:
+Do not crash the application.
+Show the active letter in error state.
+Attempt configured fallback if appropriate.
+If fallback also fails, notify the user.
+Return to idle/waiting state.
+
+21. Developer Test Mode
+Create a development panel:
+┌─────────────────────────────┐
+│ ANIRUDH Developer Console   │
+├─────────────────────────────┤
+│                             │
+│ [ A Analyze ]               │
+│ [ N Navigate ]              │
+│ [ I Interact ]              │
+│ [ R Reason ]                │
+│ [ U Understand ]            │
+│ [ D Do ]                    │
+│ [ H Help ]                  │
+│                             │
+│ [ Success ] [ Error ]       │
+│                             │
+│ Model: [ dropdown ]         │
+│                             │
+│ [ Send Test Event ]         │
+└─────────────────────────────┘
+
+This must work without connecting to a real AI model.
+
+22. MVP Development Order
+Build in this order:
+Phase 1 — Visual Pet
+Desktop transparent window
+ANIRUDH letters
+Individual letter components
+Idle animation
+Active animation
+Success animation
+Error animation
+Phase 2 — State Machine
+AgentState
+state → letter mapping
+animation controller
+task lifecycle
+Phase 3 — FreeLLMAPI
+API key configuration
+secure storage
+model discovery
+model selection
+model routing
+request handling
+streaming if supported
+error handling
+Phase 4 — Agent Orchestrator
+task input
+planning
+capability selection
+model selection
+sequential/iterative execution
+task completion
+Phase 5 — External Agent API
+WebSocket server
+event protocol
+external agent SDK
+test client
+Phase 6 — Computer Use
+Integrate a computer/browser-use agent.
+Phase 7 — Polish
+animations
+themes
+sound
+notifications
+startup
+system tray
+settings
+performance optimization
+
+23. Final Architecture
+The target architecture should look like:
+                        USER
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │ ANIRUDH Desktop │
+                  │      Pet        │
+                  └────────┬────────┘
+                           │
+                     User Task
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │ Agent           │
+                  │ Orchestrator    │
+                  └────────┬────────┘
+                           │
+                  determines capability
+                           │
+          ┌────────────────┼────────────────┐
+          │                │                │
+          ▼                ▼                ▼
+       A Analyze        R Reason         D Do
+          │                │                │
+          └────────────────┼────────────────┘
+                           │
+                           ▼
+                    Model Router
+                           │
+                           ▼
+                    FreeLLMAPI
+                           │
+             ┌─────────────┼─────────────┐
+             ▼             ▼             ▼
+          Model X       Model Y       Model Z
+             │             │             │
+             └─────────────┼─────────────┘
+                           │
+                           ▼
+                     Agent Result
+                           │
+                           ▼
+                  ANIRUDH Event Bus
+                           │
+                           ▼
+                 ┌──────────────────┐
+                 │ A N I R U D H    │
+                 │                  │
+                 │  Active Letter   │
+                 │  = Current AI    │
+                 │    Capability    │
+                 └──────────────────┘
+
+
+24. Product Principle
+The most important concept is:
+ANIRUDH is not just an animated logo.
+It is the visual identity and state representation of the AI agent.
+The user should be able to look at the desktop and immediately understand:
+What is my AI doing right now?
+For example:
+A → "I'm analyzing your request."
+
+N → "I'm navigating/searching."
+
+I → "I'm interacting with the interface."
+
+R → "I'm reasoning about the information."
+
+U → "I'm understanding/interpreting."
+
+D → "I'm executing the task."
+
+H → "I'm helping/presenting the result."
+
+The AI model is replaceable.
+The agent framework is replaceable.
+The computer-use system is replaceable.
+ANIRUDH remains the persistent visual companion.
+

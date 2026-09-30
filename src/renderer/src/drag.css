@@ -1,0 +1,2 @@
+.anirudh-pet { -webkit-app-region: drag; }
+.controls, .settings-panel, .dev-console, .window-controls, .tray-controls { -webkit-app-region: no-drag; }
