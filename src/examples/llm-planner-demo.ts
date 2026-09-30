@@ -17,18 +17,18 @@ async function demo() {
     ...DEFAULT_SETTINGS,
     modelRouting: {
       ...DEFAULT_MODEL_ROUTING,
-      analyzing: 'gpt-4o-mini', // Configure your model here
-      navigating: 'gpt-4o-mini',
-      interacting: 'gpt-4o-mini',
-      reasoning: 'gpt-4o-mini',
-      understanding: 'gpt-4o-mini',
-      doing: 'gpt-4o-mini',
-      helping: 'gpt-4o-mini',
-      fallback: 'gpt-4o-mini',
+      analyzing: 'auto', // Use FreeLLMAPI auto routing
+      navigating: 'auto',
+      interacting: 'auto',
+      reasoning: 'auto',
+      understanding: 'auto',
+      doing: 'auto',
+      helping: 'auto',
+      fallback: 'auto:fast',
     },
     freellmapi: {
       apiKey: process.env.FREELLMAPI_API_KEY || '',
-      baseUrl: 'https://api.freellmapi.com/v1',
+      baseUrl: 'http://127.0.0.1:31415/v1',
     },
   };
 
