@@ -4,7 +4,7 @@
  * Requires FREELLMAPI_API_KEY environment variable
  */
 
-import { FreeLLMAPIProvider } from '@agent/providers/freellmapi';
+import { FreeLLMAPIProvider } from '../../agent/providers/freellmapi';
 
 async function testFreeLLMAPI() {
   console.log('Testing FreeLLMAPI connection...\n');
