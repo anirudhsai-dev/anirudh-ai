@@ -1,4 +1,21 @@
 import React from 'react';
+import letterA from '../../assets/letters/letter_a.png';
+import letterN from '../../assets/letters/letter_n.png';
+import letterI from '../../assets/letters/letter_i.png';
+import letterR from '../../assets/letters/letter_r.png';
+import letterU from '../../assets/letters/letter_u.png';
+import letterD from '../../assets/letters/letter_d.png';
+import letterH from '../../assets/letters/letter_h.png';
+
+const letterImages: Record<string, string> = {
+  A: letterA,
+  N: letterN,
+  I: letterI,
+  R: letterR,
+  U: letterU,
+  D: letterD,
+  H: letterH,
+};
 
 export interface LetterProps {
   active: boolean;
@@ -7,14 +24,16 @@ export interface LetterProps {
 }
 
 export const LetterBase: React.FC<LetterProps> = ({ active, status, glyph }) => {
+  const imageSrc = letterImages[glyph];
+  
   return (
-    <span
+    <div
       className={`letter ${active ? 'active' : 'idle'} ${status}`}
       data-glyph={glyph}
       aria-label={glyph}
     >
-      {glyph}
-    </span>
+      <img src={imageSrc} alt={glyph} className="letter-image" />
+    </div>
   );
 };
 
