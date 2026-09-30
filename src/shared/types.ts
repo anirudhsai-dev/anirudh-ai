@@ -214,7 +214,7 @@ export interface AppSettings {
 export const DEFAULT_SETTINGS: AppSettings = {
   freellmapi: {
     apiKey: '',
-    baseUrl: 'https://freellmapi.example.com/v1',
+    baseUrl: 'http://127.0.0.1:31415/v1',
   },
   modelRouting: { ...DEFAULT_MODEL_ROUTING },
   generation: {
