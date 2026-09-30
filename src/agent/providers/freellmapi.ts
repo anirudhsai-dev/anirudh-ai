@@ -12,6 +12,7 @@
 import type {
   AIProvider,
   AIRequest,
+  AIMessage,
   AIResponse,
   AIStreamEvent,
   ModelInfo,

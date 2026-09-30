@@ -133,20 +133,56 @@ export class AgentOrchestrator {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Model error';
       this.bus.emit({ type: 'task_failed', state, model, message, timestamp: Date.now() });
-      // Try fallback
-      const chain = this.router.getFallbackChain(state as any);
-      if (chain.length > 1) {
-        try {
-          const fallback = chain[1];
-          this.bus.emit({ type: 'model_selected', state, model: fallback, message: 'Trying fallback model', timestamp: Date.now() });
-          this.provider.generate({ ...request, model: fallback });
-          this.stateMachine.markCompleted();
-          return;
-        } catch { /* ignore second failure */ }
+      // Try fallback chain (preferred already failed → try the rest).
+      const fallbacked = await this.tryFallback(state, request, model);
+      if (fallbacked) {
+        return;
       }
       this.stateMachine.markError();
       throw err;
     }
+  }
+
+  /**
+   * Attempt the configured fallback models for a capability.
+   * Returns true if a fallback succeeded (capability marked completed).
+   * Emits model_selected/model_started/model_completed events on success.
+   */
+  private async tryFallback(
+    state: AgentState,
+    request: AIRequest,
+    failedModel: string,
+  ): Promise<boolean> {
+    const chain = this.router.getFallbackChain(state as any).filter((m) => m !== failedModel);
+    for (const fallback of chain) {
+      this.bus.emit({ type: 'model_selected', state, model: fallback, message: 'Trying fallback model', timestamp: Date.now() });
+      this.bus.emit({ type: 'model_started', state, model: fallback, timestamp: Date.now() });
+      try {
+        if (this.provider.stream) {
+          let fullText = '';
+          for await (const evt of this.provider.stream({ ...request, model: fallback })) {
+            if (evt.type === 'token') {
+              fullText += evt.token;
+              this.bus.emit({ type: 'model_streaming', state, model: fallback, message: fullText.slice(-200), timestamp: Date.now() });
+            } else if (evt.type === 'complete') {
+              this.bus.emit({ type: 'model_completed', state, model: fallback, message: evt.response.text.slice(0, 200), timestamp: Date.now() });
+              break;
+            } else if (evt.type === 'error') {
+              throw new Error(evt.error);
+            }
+          }
+        } else {
+          const response = await this.provider.generate({ ...request, model: fallback });
+          this.bus.emit({ type: 'model_completed', state, model: fallback, message: response.text.slice(0, 200), timestamp: Date.now() });
+        }
+        this.stateMachine.markCompleted();
+        return true;
+      } catch {
+        // This fallback failed — try the next one in the chain.
+        continue;
+      }
+    }
+    return false;
   }
 
   private buildSystemPromptForState(state: AgentState): string {

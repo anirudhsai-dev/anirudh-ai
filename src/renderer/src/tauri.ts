@@ -4,6 +4,9 @@ export async function saveApiKey(key: string) {
 export async function getApiKey(): Promise<string | null> {
   return await (window as any).__TAURI__.invoke('get_api_key');
 }
+export async function deleteApiKey(): Promise<void> {
+  await (window as any).__TAURI__.invoke('delete_api_key');
+}
 export async function getModels(baseUrl: string, apiKey: string) {
   return await (window as any).__TAURI__.invoke('get_models', { baseUrl, apiKey });
 }

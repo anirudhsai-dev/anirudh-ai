@@ -19,7 +19,8 @@
       "@/*": ["src/*"],
       "@shared/*": ["src/shared/*"],
       "@agent/*": ["src/agent/*"],
-      "@renderer/*": ["src/renderer/*"]
+      "@renderer/*": ["src/renderer/*"],
+      "@websocket/*": ["src/websocket/*"]
     }
   },
   "include": ["src", "vite.config.ts"],

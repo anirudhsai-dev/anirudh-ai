@@ -1,14 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { useSettingsStore } from '../store/settingsStore';
-import { getModels, saveApiKey } from '../tauri';
+import { getModels, saveApiKey, getApiKey } from '../tauri';
 
 export const SettingsPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const settings = useSettingsStore(s => s.settings);
   const updateSettings = useSettingsStore(s => s.updateSettings);
-  const [apiKey, setApiKey] = useState(settings.freellmapi.apiKey || '');
+  const setApiKeyFromTauri = useSettingsStore(s => s.setApiKeyFromTauri);
+  const apiKeyFromTauri = useSettingsStore(s => s.apiKeyFromTauri);
+  
+  const [apiKey, setApiKey] = useState('');
   const [routing, setRouting] = useState(settings.modelRouting);
   const [models, setModels] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const capabilities = [
     { key: 'analyzing', label: 'A Analyze' },
@@ -19,6 +23,21 @@ export const SettingsPanel: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     { key: 'doing', label: 'D Do' },
     { key: 'helping', label: 'H Help' },
   ];
+
+  // Load API key from Tauri keychain on mount
+  useEffect(() => {
+    const loadKey = async () => {
+      try {
+        const key = await getApiKey();
+        setApiKey(key || '');
+        setApiKeyFromTauri(key);
+      } catch {
+        setApiKey('');
+        setApiKeyFromTauri(null);
+      }
+    };
+    loadKey();
+  }, [setApiKeyFromTauri]);
 
   const fetchModels = async () => {
     if (!apiKey) return;
@@ -33,9 +52,15 @@ export const SettingsPanel: React.FC<{ onClose: () => void }> = ({ onClose }) =>
   useEffect(() => { fetchModels(); }, [apiKey]);
 
   const save = async () => {
-    await saveApiKey(apiKey);
-    updateSettings({ modelRouting: routing });
-    onClose();
+    if (!apiKey) return;
+    setSaving(true);
+    try {
+      await saveApiKey(apiKey);
+      updateSettings({ modelRouting: routing });
+      onClose();
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -43,20 +68,35 @@ export const SettingsPanel: React.FC<{ onClose: () => void }> = ({ onClose }) =>
       <h2>ANIRUDH AI</h2>
       <label>
         FreeLLMAPI API Key
-        <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="●●●●●●●●●●●●" />
+        <input 
+          type="password" 
+          value={apiKey} 
+          onChange={e => setApiKey(e.target.value)} 
+          placeholder="●●●●●●●●●●●●" 
+        />
+        <small>
+          {apiKeyFromTauri ? 'Stored in OS keychain' : 'Not stored'}
+        </small>
       </label>
       {loading && <div>Loading models...</div>}
       {capabilities.map(c => (
         <div key={c.key} className="row">
           <span>{c.label}</span>
-          <select value={routing[c.key as keyof typeof routing]} onChange={e => setRouting(r => ({...r, [c.key]: e.target.value}))}>
+          <select 
+            value={routing[c.key as keyof typeof routing]} 
+            onChange={e => setRouting(r => ({...r, [c.key]: e.target.value}))}
+          >
             <option value="">Select model</option>
             {models.map(m => <option key={m.id} value={m.id}>{m.id}</option>)}
           </select>
         </div>
       ))}
-      <button onClick={save}>Save Configuration</button>
-      <button onClick={onClose}>Close</button>
+      <div className="actions">
+        <button onClick={save} disabled={saving || !apiKey}>
+          {saving ? 'Saving...' : 'Save Configuration'}
+        </button>
+        <button onClick={onClose}>Close</button>
+      </div>
     </div>
   );
 };

@@ -4,25 +4,31 @@ import { AppSettings, DEFAULT_SETTINGS } from '@shared/types';
 
 type SettingsState = {
   settings: AppSettings;
+  apiKeyLoaded: boolean;
+  apiKeyFromTauri?: string | null;
   updateSettings: (patch: Partial<AppSettings>) => void;
   loadDefaults: () => void;
-  saveApiKey: (key: string) => void;
+  setApiKeyFromTauri: (key: string | null) => void;
+  clearApiKeyFromTauri: () => void;
 };
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
       settings: DEFAULT_SETTINGS,
+      apiKeyLoaded: false,
+      apiKeyFromTauri: null,
+      
       updateSettings: (patch) =>
         set((s) => ({ settings: { ...s.settings, ...patch } })),
+      
       loadDefaults: () => set({ settings: DEFAULT_SETTINGS }),
-      saveApiKey: (key) =>
-        set((s) => ({
-          settings: {
-            ...s.settings,
-            freellmapi: { ...s.settings.freellmapi, apiKey: key },
-          },
-        })),
+      
+      setApiKeyFromTauri: (key) =>
+        set({ apiKeyFromTauri: key, apiKeyLoaded: true }),
+      
+      clearApiKeyFromTauri: () =>
+        set({ apiKeyFromTauri: null, apiKeyLoaded: true }),
     }),
     {
       name: 'anirudh-settings',
