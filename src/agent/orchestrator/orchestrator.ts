@@ -21,7 +21,7 @@ export interface OrchestrationOptions {
 
 export type TaskPlanner = (task: string, stateMachine: AgentStateMachine) => Promise<AgentState[]>;
 
-/** Default heuristic planner for MVP. It will be replaced by LLM planning later. */
+/** Default heuristic planner for MVP fallback. */
 const defaultPlanner: TaskPlanner = async (task, sm) => {
   const lowered = task.toLowerCase();
   const plan: AgentState[] = [];
@@ -38,11 +38,104 @@ const defaultPlanner: TaskPlanner = async (task, sm) => {
   return plan;
 };
 
+/** LLM-driven planner that uses the analyzing model to generate a capability plan. */
+export class LLMTaskPlanner {
+  constructor(
+    private provider: AIProvider,
+    private settings: AppSettings,
+    private router: ModelRouter,
+  ) {}
+
+  async plan(userTask: string): Promise<AgentState[]> {
+    const model = this.router.getModelForState('analyzing');
+    if (!model) {
+      throw new Error('No model configured for analyzing capability');
+    }
+
+    const systemPrompt = `You are ANIRUDH's task planner.
+Your job is to analyze a user task and return a JSON object with a "plan" array containing the sequence of capabilities to execute.
+
+Available capabilities (use these exact strings):
+- analyzing
+- navigating
+- interacting
+- reasoning
+- understanding
+- doing
+- helping
+
+Rules:
+1. Return ONLY a JSON object with a "plan" array of capability names
+2. The plan should be logical and complete for the user's task
+3. Never include "idle", "waiting", "success", or "error"
+4. Keep the plan concise (typically 3-7 steps)
+5. If the task is simple, you can have fewer steps
+6. The plan should start with analyzing and end with helping
+
+Example:
+User task: "Find the latest news about AI"
+Response: {"plan": ["analyzing", "navigating", "interacting", "reasoning", "understanding", "helping"]}
+
+Now analyze the task and return your plan.`;
+
+    const request = {
+      model,
+      prompt: `User task: ${userTask}\n\nGenerate the capability plan as JSON.`,
+      systemPrompt,
+      temperature: 0.3,
+      maxTokens: 256,
+      capability: 'analyzing' as AgentState,
+    };
+
+    const response = await this.provider.generate(request);
+    const text = response.text.trim();
+
+    // Extract JSON from response (handle markdown code blocks)
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error(`LLM planner returned invalid JSON: ${text.slice(0, 200)}`);
+    }
+
+    let planData;
+    try {
+      planData = JSON.parse(jsonMatch[0]);
+    } catch (e) {
+      throw new Error(`Failed to parse LLM planner JSON: ${e}`);
+    }
+
+    if (!Array.isArray(planData.plan)) {
+      throw new Error('LLM planner response missing "plan" array');
+    }
+
+    // Validate capabilities
+    const validStates: AgentState[] = [
+      'analyzing', 'navigating', 'interacting', 'reasoning',
+      'understanding', 'doing', 'helping'
+    ];
+
+    const plan = planData.plan
+      .filter((s: string) => validStates.includes(s as AgentState))
+      .map((s: string) => s as AgentState);
+
+    if (plan.length === 0) {
+      throw new Error('LLM planner returned empty or invalid plan');
+    }
+
+    // Ensure plan ends with helping
+    if (plan[plan.length - 1] !== 'helping') {
+      plan.push('helping');
+    }
+
+    return plan;
+  }
+}
+
 export class AgentOrchestrator {
   private readonly router: ModelRouter;
   private readonly stateMachine: AgentStateMachine;
   private readonly bus: AgentEventBus;
   private planner: TaskPlanner;
+  private llmPlanner: LLMTaskPlanner;
 
   constructor(options: OrchestrationOptions) {
     this.bus = new AgentEventBus();
@@ -50,7 +143,16 @@ export class AgentOrchestrator {
     this.router = new ModelRouter(options.settings.modelRouting);
     this.provider = options.provider;
     this.settings = options.settings;
-    this.planner = defaultPlanner;
+    this.llmPlanner = new LLMTaskPlanner(this.provider, this.settings, this.router);
+    // Use LLM planner by default, fallback to heuristic on error
+    this.planner = async (task, sm) => {
+      try {
+        return await this.llmPlanner.plan(task);
+      } catch (e) {
+        console.warn('LLM planning failed, falling back to heuristic:', e);
+        return await defaultPlanner(task, sm);
+      }
+    };
   }
 
   readonly provider: AIProvider;
@@ -73,7 +175,20 @@ export class AgentOrchestrator {
     this.stateMachine.startTask(taskId);
 
     try {
+      this.bus.emit({
+        type: 'message',
+        message: `Planning task: ${userTask}`,
+        timestamp: Date.now(),
+      });
+
       const plan = await this.planner(userTask, this.stateMachine);
+      
+      this.bus.emit({
+        type: 'message',
+        message: `Plan generated: ${plan.join(' → ')}`,
+        timestamp: Date.now(),
+      });
+
       for (const state of plan) {
         await this.runCapability(state, userTask);
         if (this.stateMachine.current === 'error') {
