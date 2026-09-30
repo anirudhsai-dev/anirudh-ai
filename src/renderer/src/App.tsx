@@ -39,7 +39,11 @@ export const App: React.FC = () => {
         status={status}
         model={model}
         message={message}
-        settings={settings.appearance}
+        settings={{
+          ...settings.appearance,
+          showTaskStatus: settings.behavior.showTaskStatus,
+          showModelName: settings.behavior.showModelName,
+        }}
       />
       <div className="controls">
         <button onClick={() => setShowSettings(s => !s)}>⚙️ Settings</button>

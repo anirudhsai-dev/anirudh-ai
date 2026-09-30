@@ -10,6 +10,7 @@ export const LetterBase: React.FC<LetterProps> = ({ active, status, glyph }) => 
   return (
     <span
       className={`letter ${active ? 'active' : 'idle'} ${status}`}
+      data-glyph={glyph}
       aria-label={glyph}
     >
       {glyph}
