@@ -4,9 +4,16 @@ AI-Powered Live2D Desktop Agent Pet
 
 ## Quick Start
 
+### Desktop App (Tauri)
+1. Install Tauri CLI: `npm install -g @tauri/cli`
+2. Create `.env` from `.env.example`
+3. `npm install`
+4. `npm run tauri:dev` — runs as desktop app with always-on-top transparent window
+
+### Web Preview
 1. Create `.env` from `.env.example`
 2. `npm install`
-3. `npm run dev`
+3. `npm run dev` — opens in browser for development
 
 ## FreeLLMAPI Configuration
 
