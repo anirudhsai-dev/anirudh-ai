@@ -145,14 +145,14 @@ export interface ModelRouting {
 }
 
 export const DEFAULT_MODEL_ROUTING: ModelRouting = {
-  analyzing: '',
-  navigating: '',
-  interacting: '',
-  reasoning: '',
-  understanding: '',
-  doing: '',
-  helping: '',
-  fallback: '',
+  analyzing: 'auto',
+  navigating: 'auto',
+  interacting: 'auto',
+  reasoning: 'auto',
+  understanding: 'auto',
+  doing: 'auto',
+  helping: 'auto',
+  fallback: 'auto:fast',
 };
 
 // ---------------------------------------------------------------------------

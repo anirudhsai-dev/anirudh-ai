@@ -86,7 +86,8 @@ export const SettingsPanel: React.FC<{ onClose: () => void }> = ({ onClose }) =>
             value={routing[c.key as keyof typeof routing]} 
             onChange={e => setRouting(r => ({...r, [c.key]: e.target.value}))}
           >
-            <option value="">Select model</option>
+            <option value="auto">Auto (recommended)</option>
+            <option value="auto:fast">Auto: Fast</option>
             {models.map(m => <option key={m.id} value={m.id}>{m.id}</option>)}
           </select>
         </div>
